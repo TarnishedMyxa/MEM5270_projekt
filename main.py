@@ -107,7 +107,6 @@ unique_categories = pd.concat([unique_category1, unique_category2, unique_catego
 unique_categories['category'] = unique_categories['category'].fillna('None')
 
 
-
 print("new columns added")
 
 # Add suffixes to category levels to make them unique
