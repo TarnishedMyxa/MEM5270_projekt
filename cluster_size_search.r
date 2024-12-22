@@ -48,36 +48,25 @@ head(pca_result$x)
 X <- 50  # Adjust this based on your analysis
 pca_data <- pca_result$x[, 1:X]
 
+sampled_data <- pca_data[sample(1:nrow(pca_data), size = 100000), ]  # Adjust sample size
+
 
 # Perform K-Means clustering
 set.seed(123)  # For reproducibility
 
 
 wss <- function(k) {
-  kmeans(pca_data, k, nstart = 10 )$tot.withinss
+  kmeans(sampled_data, k, nstart = 10 )$tot.withinss
 }
-
-# Set the number of clusters
-num_clusters <- 24  # Adjust this as needed
-
-
-# extrapolate the cluster from sample to the whole data
-kmeans_result <- kmeans(maindt_scaled, centers = num_clusters, nstart = 25)
-
+k_values <- 1:40
+wss_values <- sapply(k_values,wss)
+plot(k_values, wss_values,
+     type="b", pch = 19, frame = FALSE,
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
 
 
-# Add cluster labels to the original data
-maindt$cluster <- kmeans_result$cluster
 
-
-# create a  binary value column for each cluster
-for (i in 1:num_clusters) {
-  maindt[paste0("cluster_", i)] <- as.numeric(maindt$cluster == i)
-}
-
-
-#save data as csv
-write.csv(maindt, "data/maindt_mini_clustered.csv")
 
 
 
