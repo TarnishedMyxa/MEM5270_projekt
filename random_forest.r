@@ -37,9 +37,10 @@ rf_model <- ranger(bought ~ ., data = train_data, num.trees = 100, mtry = 3, imp
 print(rf_model)  # View the model summary
 
 
-predictions <- predict(rf_model, newdata = test_data)
+predictions <- predict(rf_model, data = test_data)
 
-confusion_matrix <- table(predictions, test_data$Species)
+# Confusion matrix and accuracy
+confusion_matrix <- table(Predicted = predictions$predictions, Actual = test_data$bought)
 print(confusion_matrix)
 
 accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
@@ -47,5 +48,10 @@ print(paste("Accuracy:", round(accuracy, 2)))
 
 
 importance(rf_model)
-varImpPlot(rf_model)
+# Access the feature importance
+importance <- rf_model$variable.importance
+
+# Plot the feature importance
+barplot(sort(importance, decreasing = TRUE), main = "Feature Importance", las = 2)
+
 
