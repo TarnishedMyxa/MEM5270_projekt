@@ -4,17 +4,28 @@ library(dplyr) #used in row names creation as well
 library(factoextra) #for nice cluster graph
 library(cluster) #another library for clustering plot
 
-# Read the data
-maindt <- read.csv("data/maindt_mini.csv")
 
-# View the structure of the data
-str(maindt)
+# Directory containing processed batches
+batch_dir <- "data/processed_batches"
+
+# List all CSV files in the directory
+batch_files <- list.files(batch_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Randomly sample files
+set.seed(123)  # Set seed for reproducibility
+random_batch_files <- sample(batch_files, size = 10)
+
+# Initialize an empty data frame
+maindt <- do.call(rbind, lapply(random_batch_files, read.csv))
+
+# ommit bougth column as it will be the prediction column
+maindt <- maindt[, -which(names(maindt) %in% c("bought"))]
+
 
 # Convert "False"/"True" columns to logical (TRUE/FALSE) and then to numeric (1/0)
 maindt$day_phase_morning <- as.numeric(maindt$day_phase_morning == "True")
 maindt$day_phase_afternoon <- as.numeric(maindt$day_phase_afternoon == "True")
 maindt$day_phase_evening <- as.numeric(maindt$day_phase_evening == "True")
-#maindt$day_phase_night <- as.numeric(maindt$day_phase_night == "True")
 
 
 # Select only numeric columns for PCA
@@ -51,10 +62,6 @@ pca_data <- pca_result$x[, 1:X]
 sampled_data <- pca_data[sample(1:nrow(pca_data), size = 100000), ]  # Adjust sample size
 
 
-# Perform K-Means clustering
-set.seed(123)  # For reproducibility
-
-
 wss <- function(k) {
   kmeans(sampled_data, k, nstart = 10 )$tot.withinss
 }
@@ -64,9 +71,4 @@ plot(k_values, wss_values,
      type="b", pch = 19, frame = FALSE,
      xlab="Number of clusters K",
      ylab="Total within-clusters sum of squares")
-
-
-
-
-
 
