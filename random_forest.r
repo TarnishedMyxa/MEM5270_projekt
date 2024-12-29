@@ -1,57 +1,99 @@
+# Load necessary libraries
 library(randomForest)
 library(ranger)
 
-# Load the data
-data <- read.csv("data/maindt_mini_clustered.csv")
+# Directory containing clustered batches
+clustered_batch_dir <- "data/clustered_batches"
+
+# List all CSV files in the directory
+clustered_files <- list.files(clustered_batch_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Randomly sample 50 files for training
+set.seed(321)  # Ensure reproducibility
+train_files <- sample(clustered_files, size = 50)
+
+# Combine the sampled training batch files into one data frame
+train_data <- do.call(rbind, lapply(train_files, read.csv))
+
+# remove "cluster" column
+train_data <- train_data[, -which(names(train_data) %in% c("cluster"))]
 
 
 
-# Convert "False"/"True" columns to logical (TRUE/FALSE) and then to numeric (1/0)
-data$day_phase_morning <- as.numeric(data$day_phase_morning == "True")
-data$day_phase_afternoon <- as.numeric(data$day_phase_afternoon == "True")
-data$day_phase_evening <- as.numeric(data$day_phase_evening == "True")
-#maindt$day_phase_night <- as.numeric(data$day_phase_night == "True")
+train_data_num <- train_data[, sapply(train_data, is.numeric)]
+train_data_num <- train_data_num[, apply(train_data_num, 2, var) != 0]  # Remove zero-variance columns
 
+# set missing values to 0
+train_data_num[is.na(train_data_num)] <- 0
 
-# Select only numeric columns for PCA
-data_num <- data[, sapply(data, is.numeric)]
+class_counts <- table(train_data_num$bought)
+class_weights <- 1 / class_counts
+class_weights <- class_weights / sum(class_weights)  # Normalize weights
 
+row_weights <- ifelse(train_data_num$bought == "0", class_weights["0"], class_weights["1"])
 
-# bruh...
-data_num <- data_num[, apply(data_num, 2, var) != 0]
+# Convert 'bought' column to a factor
+train_data_num$bought <- as.factor(train_data_num$bought)
 
-# shouldn´t be any but just to be sure
-data_num <- na.omit(data_num)
+# Train the random forest model
+rf_model <- ranger(
+  formula = bought ~ ., 
+  data = train_data_num, 
+  num.trees = 101, 
+  mtry = 7, 
+  importance = "impurity", 
+  case.weights = row_weights
+)
+print(rf_model)  # View model summary
 
+# Testing on remaining files
+test_files <- setdiff(clustered_files, train_files)
+all_confusion_matrices <- list()  # To store confusion matrices for each test batch
 
-data_num$bought <- as.factor(data_num$bought)
+traincolnames <- colnames(train_data_num)
 
+#free memory
+rm(train_data)
+rm(train_data_num)
+gc()
 
-set.seed(123)  # For reproducibility
-sample_index <- sample(1:nrow(data_num), 0.7 * nrow(data_num))  # 70% training data
-train_data <- data_num[sample_index, ]
-test_data <- data_num[-sample_index, ]
+for (test_file in test_files) {
+  # Read and preprocess the test batch
+  test_data <- read.csv(test_file)
+  
+  #remove "cluster" column
+  test_data <- test_data[, -which(names(test_data) %in% c("cluster"))]
+  
+  
+  test_data_num <- test_data[, sapply(test_data, is.numeric)]
+  test_data_num <- test_data_num[, apply(test_data_num, 2, var) != 0]  # Remove zero-variance columns
+  test_data_num <- na.omit(test_data_num)
+  
+  missing_cols <- setdiff(traincolnames, colnames(test_data_num))
+  for (col in missing_cols) {
+    test_data_num[[col]] <- 0
+  }
+  
+  # Ensure test data has the same columns as training data
+  test_data_num <- test_data_num[, traincolnames, drop = FALSE]
+  
+  # Predict on the test batch
+  predictions <- predict(rf_model, data = test_data_num)
+  
+  # Generate confusion matrix
+  confusion_matrix <- table(Predicted = predictions$predictions, Actual = test_data_num$bought)
+  all_confusion_matrices[[test_file]] <- confusion_matrix
+  
+  # Print confusion matrix for this batch
+  #print(paste("Confusion Matrix for", test_file))
+  #print(confusion_matrix)
+}
 
+# Combine results across all batches
+overall_confusion_matrix <- Reduce(`+`, all_confusion_matrices)
+print("Overall Confusion Matrix:")
+print(overall_confusion_matrix)
 
-rf_model <- ranger(bought ~ ., data = train_data, num.trees = 100, mtry = 3, importance = "impurity")
-print(rf_model)  # View the model summary
-
-
-predictions <- predict(rf_model, data = test_data)
-
-# Confusion matrix and accuracy
-confusion_matrix <- table(Predicted = predictions$predictions, Actual = test_data$bought)
-print(confusion_matrix)
-
-accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-print(paste("Accuracy:", round(accuracy, 2)))
-
-
-importance(rf_model)
-# Access the feature importance
-importance <- rf_model$variable.importance
-
-# Plot the feature importance
-barplot(sort(importance, decreasing = TRUE), main = "Feature Importance", las = 2)
-
-
+# Calculate overall accuracy
+overall_accuracy <- sum(diag(overall_confusion_matrix)) / sum(overall_confusion_matrix)
+print(paste("Overall Accuracy:", round(overall_accuracy, 2)))

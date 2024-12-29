@@ -26,6 +26,8 @@ random_batch_files <- sample(batch_files, size = 50)
 # Combine selected batch files into one data frame for PCA and clustering
 subset_data <- do.call(rbind, lapply(random_batch_files, read.csv))
 
+
+
 # Remove the 'bought' column
 subset_data <- subset_data[, -which(names(subset_data) %in% c("bought"))]
 
@@ -119,6 +121,9 @@ for (file in batch_files) {
   # Read batch file
   batch_data <- read.csv(file)
   
+  
+  #save bought column
+  bought <- batch_data$bought
 
   # Preprocess: Remove 'bought' column and convert day phase columns to numeric
   batch_data <- batch_data[, !(names(batch_data) %in% c("bought"))]
@@ -145,6 +150,8 @@ for (file in batch_files) {
     batch_data[paste0("cluster_", i)] <- as.numeric(batch_data$cluster == i)
   }
   
+  #put back the bought column
+  batch_data$bought <- bought
   
   # Save the clustered batch data
   write.csv(batch_data, file.path(output_dir, basename(file)), row.names = FALSE)
