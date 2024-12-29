@@ -39,7 +39,7 @@ train_data_num$bought <- as.factor(train_data_num$bought)
 rf_model <- ranger(
   formula = bought ~ ., 
   data = train_data_num, 
-  num.trees = 101, 
+  num.trees = 151, 
   mtry = 7, 
   importance = "impurity", 
   case.weights = row_weights
