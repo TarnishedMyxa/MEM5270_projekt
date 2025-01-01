@@ -1,0 +1,91 @@
+> # Load necessary libraries
+> library(randomForest)
+
+> library(ranger)
+
+> # Directory containing clustered batches
+> clustered_batch_dir <- "data/clustered_batches"
+
+> # List all CSV files in the directory
+> clustered_files <- list.files(clustered_batch_dir, pattern = "\\.csv$", full.names = TRUE)
+
+> # Randomly sample 50 files for training
+> set.seed(123)  # Ensure reproducibility
+
+> train_files <- sample(clustered_files, size = 50)
+
+> # Combine the sampled training batch files into one data frame
+> train_data <- do.call(rbind, lapply(train_files, read.csv))
+
+> # remove "cluster" column
+> train_data <- train_data[, -which(names(train_data) %in% c("cluster"))]
+
+> train_data_num <- train_data[, sapply(train_data, is.numeric)]
+
+> train_data_num <- train_data_num[, apply(train_data_num, 2, var) != 0]  # Remove zero-variance columns
+
+> # set missing values to 0
+> train_data_num[is.na(train_data_num)] <- 0
+
+> # Convert 'bought' column to a factor
+> train_data_num$bought <- as.factor(train_data_num$bought)
+
+> # Train the random forest model
+> rf_model <- ranger(bought ~ ., data = train_data_num, num.trees = 100, mtry = 3, importance = "impurity")
+Growing trees.. Progress: 9%. Estimated remaining time: 6 minutes, 34 seconds.
+Growing trees.. Progress: 17%. Estimated remaining time: 5 minutes, 46 seconds.
+Growing trees.. Progress: 27%. Estimated remaining time: 4 minutes, 54 seconds.
+Growing trees.. Progress: 35%. Estimated remaining time: 4 minutes, 27 seconds.
+Growing trees.. Progress: 43%. Estimated remaining time: 3 minutes, 51 seconds.
+Growing trees.. Progress: 50%. Estimated remaining time: 3 minutes, 26 seconds.
+Growing trees.. Progress: 61%. Estimated remaining time: 2 minutes, 31 seconds.
+Growing trees.. Progress: 68%. Estimated remaining time: 2 minutes, 6 seconds.
+Growing trees.. Progress: 79%. Estimated remaining time: 1 minute, 20 seconds.
+Growing trees.. Progress: 88%. Estimated remaining time: 45 seconds.
+Growing trees.. Progress: 100%. Estimated remaining time: 0 seconds.
+
+> print(rf_model)  # View model summary
+Ranger result
+
+Call:
+ ranger(bought ~ ., data = train_data_num, num.trees = 100, mtry = 3,      importance = "impurity") 
+
+Type:                             Classification 
+Number of trees:                  100 
+Sample size:                      1770390 
+Number of independent variables:  325 
+Mtry:                             3 
+Target node size:                 1 
+Variable importance mode:         impurity 
+Splitrule:                        gini 
+OOB prediction error:             2.41 % 
+
+> # Testing on remaining files
+> test_files <- setdiff(clustered_files, train_files)
+
+> all_confusion_matrices <- list()  # To store confusion matrices for each test batch
+
+> for (test_file in test_files) {
++   # Read and preprocess the test batch
++   test_data <- read.csv(test_file)
++   
++   #remove "cluster" column
++    .... [TRUNCATED] 
+
+> # Combine results across all batches
+> overall_confusion_matrix <- Reduce(`+`, all_confusion_matrices)
+
+> print("Overall Confusion Matrix:")
+[1] "Overall Confusion Matrix:"
+
+> print(overall_confusion_matrix)
+         Actual
+Predicted        0        1
+        0 20680320   566432
+        1        0        0
+
+> # Calculate overall accuracy
+> overall_accuracy <- sum(diag(overall_confusion_matrix)) / sum(overall_confusion_matrix)
+
+> print(paste("Overall Accuracy:", round(overall_accuracy, 2)))
+[1] "Overall Accuracy: 0.97"
